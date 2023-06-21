@@ -34,9 +34,9 @@ lfe> (html '(p ((class "my-paragraph")) "Testing"))
 ### A list of tags
 ```LFE
 lfe> (html '(html () (
-						(head () ((title () "My title")))
-						(body () ((p () "My paragraph")))
-					)))
+			(head () ((title () "My title")))
+			(body () ((p () "My paragraph")))
+		)))
 #"<html><head><title>My title</title></head><body><p>My paragraph</p></body></html>"
 ```
 
