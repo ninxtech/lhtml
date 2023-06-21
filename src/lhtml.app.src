@@ -1,0 +1,14 @@
+{application, 'lhtml', [
+    {description, "Utilities for working with HTML in LFE"},
+    {vsn, git},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env,[]},
+    {modules, []},
+
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+ ]}.
