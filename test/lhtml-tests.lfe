@@ -23,3 +23,8 @@
 (is-equal `("a") (lhtml:parse #"a"))
 (is-equal `(("div" () (("p" () ("test"))))) (lhtml:parse #"<div><p>test</p></div>"))
 )
+
+(deftest get-by-tag 
+(is-equal `(("div" () ())) (html:get-by-tag #"<div></div>"))
+(is-equal `(("div" () ())) (html:get-by-tag #"<div></div>"))
+)

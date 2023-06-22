@@ -9,6 +9,24 @@
 ;;; library API
 ;;; -----------
 
+(defun get-by-tag (tag tree)
+ "Get html elements by tag"
+ (lists:append (cl:mapcar (match-lambda 
+			   ([(= (list tag1 _ body) elem)] (when (== tag tag1)) (cons elem (get-by-tag tag body)))
+			   ([(list _ _ body)] (get-by-tag tag body))) tree)))
+
+(defun has-attr?
+ "Detect if a key value pair is present in provided attributes"
+ ([_ _ ()] 'false)
+  ([attr value (cons (list k v) else)] (when (and (== attr k) (== value v))) 'true)
+   ([attr value (cons _ else)] (has-attr? attr value else)))
+
+(defun get-by-attr-value (attr value tree)
+ "Get html elements with attribute set to specified values"
+ (lists:append (cl:mapcar (match-lambda ([(= (list _ attrs body) elem)] (if (has-attr? attr value attrs)
+									    (cons elem (get-by-attr-value attr value body))
+									    (get-by-attr-value attr value body)))) tree)))
+
 (defun parse (html)
  (build-tree html () ()))
 
@@ -20,6 +38,7 @@
  "builds the html tree"
  ([#"" () acc]  (cl:remove () acc))
  ([#"" part acc] (cons part acc))
+ ([(binary "</" (tail binary)) part acc] (build-tree (remove-closing-tag tail) part acc))
  ([(binary "<" (tail binary)) part acc] (let* (((list element else) (case (get-openning-tag tail)
 									  ((list 'script _ tail) (let (((list script-body other) (build-body "script" tail)))
 									    `(("script" () ,script-body) ,other)))
@@ -32,8 +51,14 @@
 									      (build-attr tag tail1)
 									      (build-attr-body tag tail1)))
 									    ((list 'single-tag tag tail1) `((,tag () ()) ,tail1)))))
-									      (build-tree else () (cons element (cons part acc)))))
+	      (build-tree else () (cons element (cons part acc)))))
  ([html part acc] (build-tree (binary:part html 1 (- (size html) 1)) (++ part (list (binary:first html))) acc)))
+
+
+(defun remove-closing-tag
+ "recursively run the function to remove ....> tag, only called when there is a lone closing tag"
+ ([(binary ">" (else binary))] else)
+ ([html] (remove-closing-tag (binary:part html 1 (-  (size html) 1)))))
 
 (defun get-openning-tag (html)
  (get-openning-tag html ()))
@@ -50,11 +75,32 @@
  ([(binary " " (else binary)) acc] `(openning-tag ,acc ,else))
  ([html acc] (get-openning-tag (binary:part html 1 (-  (size html) 1)) (++ acc (list (binary:first html))))))
 
-(defun build-body (tag html)
+
+(defun split-at-closing-tag
+ "find all openning and closing tags, pair them, find the odd man out, use it to split the html into two parts using its position"
+ ([() ()] `(() ()))
+ ([tag html] (let (((tuple start _) (match-closing-tag tag html)))
+	      (binary:split html (list_to_binary `("</" ,tag ">")) `(#(scope #(,start ,(- (size html) start))))))))
+
+(defun match-closing-tag (tag html)
+ "find all openning and closing tags, reverse the openning tags, cancel them out because the last openning pairs with the first closing"
+ (let ((open-tag-matches (cl:reverse (binary:matches html (list_to_binary `("<" ,tag ">")))))
+       (close-tag-matches (binary:matches html (list_to_binary `("</" ,tag ">")))))
+  (match-tags open-tag-matches close-tag-matches )))
+
+(defun match-tags 
+ "cancel an openning and closing tag till only one closing tag remains"
+ ([() ()] `(() ()))
+ ([() (cons c _)] c)
+ ([(cons o opening) (cons c closing)] (match-tags opening closing)))
+
+(defun build-body 
  " builds tags with no attributes, only body"
- (io:format "~p~n" (list (list tag html)))
- (let (((list body else) (binary:split html (list_to_binary `("</" ,tag ">")))))
-  `(,body ,else)))
+ ([_ #""] `(#"" #""))
+ ([tag html] (let (((list body else) (if (== 'nomatch (string:find html (list_to_binary `("</" ,tag ">")))) 
+					  `(,html #"")
+					  (split-at-closing-tag tag html))))
+	      `(,body ,else))))
 
 (defun build-attr (tag html)
  "builds attributes for singletons, checks what comes first of /> and > and uses that the closing tag, no body"
@@ -70,18 +116,21 @@
 
 
 (defun build-script-attr-body (tag html)
- " builds attributes and body for 'doubletons'"
+ " builds script body"
  (let* (((list attr-bin else) (binary:split html #">"))
 	(attr-list (parse-attr attr-bin))
-	((list body tail) (binary:split else (list_to_binary `("</" ,tag ">")))))
+	((list body tail) (split-at-closing-tag tag html)))
   `((,tag ,attr-list (,body)) ,tail)))
 
 (defun build-attr-body (tag html)
  " builds attributes and body for 'doubletons'"
- (io:format "~p~n" (list (list tag html)))
  (let* (((list attr-bin else) (binary:split html #">"))
 	(attr-list (parse-attr attr-bin))
-	((list body tail) (binary:split else (list_to_binary `("</" ,tag ">")))))
+	((list body tail) (if (== else #"")
+			      (list #"" #"")
+			      (if (== 'nomatch (string:find else (list_to_binary `("</" ,tag ">"))))
+				   (list else #"")
+				   (split-at-closing-tag tag else)))))
   `((,tag ,attr-list ,(parse body)) ,tail)))
 
 (defun parse-attr (attrs)
