@@ -22,9 +22,9 @@
 (is-equal `(("br" ((#"class" #"'a'")) ())) (lhtml:parse #"<br class='a'/>"))
 (is-equal `("a") (lhtml:parse #"a"))
 (is-equal `(("div" () (("p" () ("test"))))) (lhtml:parse #"<div><p>test</p></div>"))
-)
+(is-equal `(("div" () ())) (lhtml:parse #"<div></div>"))
+(is-equal `(("div" () ()) ("div" () ())) (lhtml:parse #"<div></div><div></div>"))
+(is-equal `(("div" () (("div" () ()))) ("div" () ())) (lhtml:parse #"<div><div></div></div><div></div>")))
 
 (deftest get-by-tag 
-(is-equal `(("div" () ())) (html:get-by-tag #"<div></div>"))
-(is-equal `(("div" () ())) (html:get-by-tag #"<div></div>"))
-)
+(is-equal `(("br" () ())) (lhtml:get-by-tag "br" '(("br" () ())))))

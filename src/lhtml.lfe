@@ -1,9 +1,10 @@
 (defmodule lhtml
  (export
   (html 1)
-  (get-openning-tag 1)
-  (parse 1))
- (export all))
+  (parse 1)
+  (get-scripts 1)
+  (get-by-tag 2)
+  (get-by-attr-value 3)))
 
 ;;; -----------
 ;;; library API
@@ -11,10 +12,29 @@
 
 (defun get-by-tag (tag tree)
  "Get html elements by tag"
- (lists:append (cl:mapcar (match-lambda 
-			   ([(= (list tag1 _ body) elem)] (when (== tag tag1)) (cons elem (get-by-tag tag body)))
-			   ([(list _ _ body)] (get-by-tag tag body))) tree)))
+ (lists:append (cl:remove () (if (or (== 'string (cl:type-of tree)) (== 'integer (cl:type-of  tree)))
+				 ()
+				 (if (and (== 'list (cl:type-of tree)) (== (length tree) 1) (== 'string (cl:type-of (car tree))))
+				     ()
+				     (cl:mapcar (match-lambda 
+						 ([(= (list tag1 _ body) elem)] (when (== tag tag1)) (cons elem (get-by-tag tag body)))
+						 ([(list "script" _ _)] ())
+						 ([(list _ _ body)] (if (== (cl:type-of body) 'string)
+									 ()
+									 (get-by-tag tag body)))
+						 ([_] ())) tree))))))
 
+
+(defun get-scripts (tree)
+ "Get scripts in a given tree"
+ (lists:append (cl:remove () (if (or (== 'string (cl:type-of tree)) (== 'integer (cl:type-of  tree)))
+				 ()
+				 (if (and (== 'list (cl:type-of tree)) (== (length tree) 1) (== 'string (cl:type-of (car tree))))
+				     ()
+				     (cl:mapcar (match-lambda 
+						 ([(= (list "script" _ _) script)] (list script))
+						 ([(= (list _ _ body) elem)] (get-scripts body))
+						 ([_] ())) tree))))))
 (defun has-attr?
  "Detect if a key value pair is present in provided attributes"
  ([_ _ ()] 'false)
@@ -28,7 +48,7 @@
 									    (get-by-attr-value attr value body)))) tree)))
 
 (defun parse (html)
- (build-tree html () ()))
+ (cl:reverse (build-tree html () ())))
 
 (defun singleton? (tag)
  "detects if a tag is a singleton"
@@ -51,7 +71,7 @@
 									      (build-attr tag tail1)
 									      (build-attr-body tag tail1)))
 									    ((list 'single-tag tag tail1) `((,tag () ()) ,tail1)))))
-	      (build-tree else () (cons element (cons part acc)))))
+									      (build-tree else () (cons element (cons part acc)))))
  ([html part acc] (build-tree (binary:part html 1 (- (size html) 1)) (++ part (list (binary:first html))) acc)))
 
 
@@ -84,15 +104,22 @@
 
 (defun match-closing-tag (tag html)
  "find all openning and closing tags, reverse the openning tags, cancel them out because the last openning pairs with the first closing"
- (let ((open-tag-matches (cl:reverse (binary:matches html (list_to_binary `("<" ,tag ">")))))
+ (let ((open-tag-matches (binary:matches html (list_to_binary `("<" ,tag ">"))))
        (close-tag-matches (binary:matches html (list_to_binary `("</" ,tag ">")))))
-  (match-tags open-tag-matches close-tag-matches )))
+  (case (list open-tag-matches close-tag-matches)
+	((list () _) (car close-tag-matches))
+	(_ (if (< (car close-tag-matches) (car open-tag-matches))
+	       (car close-tag-matches)
+	       (match-tags-n open-tag-matches close-tag-matches))))))
 
-(defun match-tags 
+
+(defun match-tags-n
  "cancel an openning and closing tag till only one closing tag remains"
  ([() ()] `(() ()))
  ([() (cons c _)] c)
- ([(cons o opening) (cons c closing)] (match-tags opening closing)))
+ ([(cons (tuple o _) opening) (cons (= (tuple c _) cl) closing)] (if (< c o)
+								     cl
+								     (match-tags-n opening closing))))
 
 (defun build-body 
  " builds tags with no attributes, only body"
